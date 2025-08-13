@@ -1,0 +1,26 @@
+# TaskWeaver AI 核心依赖
+# 与 pyproject.toml 保持同步，用于不支持 pyproject.toml 的环境
+
+# 数据模型和验证
+pydantic>=2.0.0
+
+# Excel文件处理
+openpyxl>=3.1.0
+
+# HTML模板引擎
+jinja2>=3.1.0
+
+# HTTP请求处理
+requests>=2.31.0
+
+# 日期时间处理
+python-dateutil>=2.8.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# AI/LLM支持
+openai>=1.0.0
+
+# 命令行界面
+click>=8.0.0

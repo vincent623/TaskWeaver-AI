@@ -1,0 +1,60 @@
+# pyproject.toml
+[project]
+name = "taskweaver-ai"
+version = "1.0.0"
+description = "智能项目规划助手 - 将自然语言和Mermaid代码转化为专业的Excel甘特图和HTML报告"
+readme = "Readme.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "TaskWeaver AI Team", email = "team@taskweaver.ai"}
+]
+keywords = ["gantt", "project-management", "ai", "mermaid", "excel"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Office/Business :: Scheduling",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "openpyxl>=3.1.0",
+    "pydantic>=2.0.0", 
+    "jinja2>=3.1.0",
+    "requests>=2.31.0",
+    "python-dateutil>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "openai>=1.0.0",
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+taskweaver = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/username/taskweaver-ai"
+Repository = "https://github.com/username/taskweaver-ai.git"
+Documentation = "https://github.com/username/taskweaver-ai#readme"
+"Bug Tracker" = "https://github.com/username/taskweaver-ai/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true

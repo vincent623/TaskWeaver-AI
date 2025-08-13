@@ -1,0 +1,33 @@
+gantt
+    dateFormat  YYYY-MM-DD
+    title       TaskWeaver AI 示例项目
+
+    section 项目启动
+    需求分析        :req, done, 2024-01-01, 5d
+    技术调研        :research, done, 2024-01-02, 3d
+    环境搭建        :setup, done, after req, 2d
+    启动里程碑      :milestone1, milestone, after setup
+
+    section 设计阶段
+    系统架构设计    :arch, active, after milestone1, 5d
+    数据库设计      :db, active, after arch, 3d
+    UI/UX设计      :ui, active, after arch, 4d
+    设计完成里程碑  :milestone2, milestone, after db
+
+    section 开发阶段
+    后端开发        :backend, crit, after milestone2, 15d
+    前端开发        :frontend, active, after ui, 12d
+    数据层开发      :data, crit, after db, 8d
+    集成测试        :integration, active, after backend, 5d
+
+    section 测试阶段
+    单元测试        :unit, active, after integration, 3d
+    系统测试        :system, active, after unit, 5d
+    用户验收测试    :uat, active, after system, 4d
+    测试完成里程碑  :milestone3, milestone, after uat
+
+    section 发布阶段
+    部署准备        :deploy_prep, after milestone3, 2d
+    生产部署        :deploy, after deploy_prep, 1d
+    上线验证        :verify, after deploy, 1d
+    项目完成        :complete, milestone, after verify
