@@ -65,9 +65,9 @@ class NaturalLanguageParser:
             {"role": "user", "content": user_prompt}
         ]
         
-        # 尝试多次，逐步增加max_tokens
+        # 尝试多次，逐步增加max_tokens（不超过4096限制）
         max_attempts = 3
-        token_limits = [3000, 4000, 5000]
+        token_limits = [2000, 3000, 4000]
         
         for attempt in range(max_attempts):
             try:
@@ -128,12 +128,14 @@ class NaturalLanguageParser:
     ]
 }
 
-注意：
-- 任务ID用简短英文标识符
+严格要求：
+- 任务ID用简短英文标识符（如task1, design, dev等）
+- duration必须是整数（工作日），不能有小数
 - 里程碑duration为0
-- status可选：["active"]、["crit"]、["done"]
-- 确保JSON格式正确完整
-- 控制任务数量在合理范围内（建议10-20个主要任务）"""
+- status只能是：["active"]、["crit"]或["done"]
+- 控制任务数量在10-15个主要任务
+- 避免过度细分，重点关注主要里程碑
+- 确保JSON格式完整正确"""
     
     def _build_user_prompt(self, description: str, project_title: str = None) -> str:
         """构建用户提示"""
@@ -217,11 +219,18 @@ class NaturalLanguageParser:
                 elif not isinstance(status, list):
                     status = []
                 
+                # 处理duration字段（确保为整数）
+                duration = task_data.get('duration', 1)
+                if isinstance(duration, float):
+                    duration = max(1, int(round(duration)))  # 四舍五入并确保最小为1
+                elif not isinstance(duration, int):
+                    duration = 1
+                
                 task = Task(
                     id=task_data.get('id', ''),
                     name=task_data.get('name', ''),
                     description=task_data.get('description'),
-                    duration=task_data.get('duration', 1),
+                    duration=duration,
                     dependencies=task_data.get('dependencies', []),
                     status=status,
                     is_milestone=task_data.get('is_milestone', False),
