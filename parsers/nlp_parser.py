@@ -18,7 +18,8 @@ class NaturalLanguageParser:
     """
     自然语言解析器
     
-    使用AI技术将自然语言描述转换为结构化的项目计划
+    使用AI技术将自然语言描述转换为结构化的项目计划。
+    需要配置有效的LLM提供商（SiliconFlow或OpenAI）来工作。
     """
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None):
@@ -30,22 +31,16 @@ class NaturalLanguageParser:
             api_key: API密钥
             model: 使用的模型名称
         """
-        try:
-            # 自动选择或使用指定的提供商
-            if not provider:
-                provider = auto_select_provider()
-            
-            self.llm_client = LLMClient(provider, api_key, model)
-            
-            if self.llm_client.is_available():
-                print(f"✅ 使用 {provider} 进行自然语言解析")
-            else:
-                print("⚠️ LLM客户端不可用，将使用模拟模式")
-                self.llm_client = None
-                
-        except Exception as e:
-            print(f"⚠️ LLM初始化失败，使用模拟模式: {e}")
-            self.llm_client = None
+        # 自动选择或使用指定的提供商
+        if not provider:
+            provider = auto_select_provider()
+        
+        self.llm_client = LLMClient(provider, api_key, model)
+        
+        if not self.llm_client.is_available():
+            raise Exception(f"LLM客户端不可用: {provider}。请检查API密钥和网络连接。")
+        
+        print(f"✅ 使用 {provider} 进行自然语言解析")
     
     def parse(self, description: str, project_title: str = None) -> ProjectPlan:
         """
@@ -58,61 +53,63 @@ class NaturalLanguageParser:
         Returns:
             解析后的项目计划
         """
-        if self.llm_client:
-            return self._parse_with_ai(description, project_title)
-        else:
-            return self._parse_with_simulation(description, project_title)
+        return self._parse_with_ai(description, project_title)
     
     def _parse_with_ai(self, description: str, project_title: str = None) -> ProjectPlan:
         """使用AI进行解析"""
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(description, project_title)
         
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            content = self.llm_client.chat_completion(messages, temperature=0.1, max_tokens=2000)
-            
-            if content:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        # 尝试多次，逐步增加max_tokens
+        max_attempts = 3
+        token_limits = [3000, 4000, 5000]
+        
+        for attempt in range(max_attempts):
+            try:
+                content = self.llm_client.chat_completion(
+                    messages, 
+                    temperature=0.1, 
+                    max_tokens=token_limits[attempt]
+                )
+                
+                if not content:
+                    raise Exception("LLM返回空结果")
+                
                 return self._parse_ai_response(content)
-            else:
-                raise Exception("LLM返回空结果")
-            
-        except Exception as e:
-            print(f"AI解析失败: {e}")
-            return self._parse_with_simulation(description, project_title)
+                
+            except ValueError as e:
+                if "AI返回的数据格式不正确" in str(e) and attempt < max_attempts - 1:
+                    print(f"⚠️ 第{attempt + 1}次解析失败，重试中...")
+                    continue
+                else:
+                    raise
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    print(f"⚠️ 第{attempt + 1}次请求失败，重试中...")
+                    continue
+                else:
+                    raise Exception(f"AI解析失败，已重试{max_attempts}次: {str(e)}")
+        
+        raise Exception("AI解析失败，请检查网络连接或API配置")
     
-    def _parse_with_simulation(self, description: str, project_title: str = None) -> ProjectPlan:
-        """模拟解析（当AI不可用时）"""
-        print("使用模拟解析器...")
-        
-        # 简单的规则解析
-        tasks = self._extract_tasks_with_rules(description)
-        
-        return ProjectPlan(
-            title=project_title or "AI解析的项目",
-            description=description,
-            tasks=tasks,
-            created_date=date.today(),
-            version="1.0"
-        )
+
     
     def _build_system_prompt(self) -> str:
         """构建系统提示"""
-        return """你是一个专业的项目管理专家。你的任务是将用户的自然语言项目描述转换为结构化的项目计划。
+        return """你是项目管理专家。将自然语言项目描述转换为JSON格式的项目计划。
 
-分析要求：
-1. 识别项目中的主要任务和里程碑
-2. 估算合理的任务持续时间
-3. 分析任务之间的依赖关系
-4. 按逻辑将任务分组到不同阶段
-5. 识别关键任务和里程碑
+要求：
+1. 识别主要任务和里程碑
+2. 合理估算持续时间（工作日）
+3. 分析任务依赖关系
+4. 按阶段分组任务
 
-输出格式：
-返回严格的JSON格式，包含以下结构：
+返回JSON格式：
 {
     "title": "项目标题",
     "description": "项目描述",
@@ -122,23 +119,21 @@ class NaturalLanguageParser:
             "name": "任务名称",
             "description": "任务描述",
             "duration": 5,
-            "dependencies": ["前置任务ID"],
-            "status": ["done/active/crit"],
+            "dependencies": [],
+            "status": ["active"],
             "is_milestone": false,
             "section": "阶段名称",
-            "start_date": "2024-01-01"
+            "start_date": "2025-01-01"
         }
     ]
 }
 
-注意事项：
-- 任务ID使用简短的英文标识符
-- 持续时间以工作日为单位
-- 依赖关系要确保逻辑正确
-- 里程碑的持续时间为0
-- 合理安排项目开始时间（通常从今天或下周开始）
-- 状态：done(已完成), active(进行中), crit(关键任务)
-- 确保返回的是有效的JSON格式"""
+注意：
+- 任务ID用简短英文标识符
+- 里程碑duration为0
+- status可选：["active"]、["crit"]、["done"]
+- 确保JSON格式正确完整
+- 控制任务数量在合理范围内（建议10-20个主要任务）"""
     
     def _build_user_prompt(self, description: str, project_title: str = None) -> str:
         """构建用户提示"""
@@ -158,13 +153,49 @@ class NaturalLanguageParser:
     def _parse_ai_response(self, response: str) -> ProjectPlan:
         """解析AI响应"""
         try:
-            # 提取JSON部分
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                data = json.loads(json_str)
-            else:
-                data = json.loads(response)
+            # 清理响应文本，移除markdown代码块标记
+            clean_response = response.strip()
+            if clean_response.startswith('```json'):
+                clean_response = clean_response[7:]
+            if clean_response.startswith('```'):
+                clean_response = clean_response[3:]
+            if clean_response.endswith('```'):
+                clean_response = clean_response[:-3]
+            clean_response = clean_response.strip()
+            
+            # 尝试修复截断的JSON
+            if not clean_response.endswith('}'):
+                # 查找最后一个完整的对象
+                depth = 0
+                last_complete_pos = -1
+                for i, char in enumerate(clean_response):
+                    if char == '{':
+                        depth += 1
+                    elif char == '}':
+                        depth -= 1
+                        if depth == 0:
+                            last_complete_pos = i + 1
+                
+                if last_complete_pos > 0:
+                    clean_response = clean_response[:last_complete_pos]
+                else:
+                    # 如果找不到完整结构，尝试添加缺失的大括号
+                    open_braces = clean_response.count('{')
+                    close_braces = clean_response.count('}')
+                    missing_braces = open_braces - close_braces
+                    clean_response += '}' * missing_braces
+            
+            # 解析JSON
+            try:
+                data = json.loads(clean_response)
+            except json.JSONDecodeError as json_error:
+                # 如果还是失败，尝试提取JSON部分
+                json_match = re.search(r'\{.*?\}', clean_response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    data = json.loads(json_str)
+                else:
+                    raise json_error
             
             # 转换为ProjectPlan对象
             tasks = []
@@ -209,78 +240,13 @@ class NaturalLanguageParser:
             
         except Exception as e:
             print(f"解析AI响应失败: {e}")
-            print(f"原始响应: {response}")
-            raise ValueError("AI返回的数据格式不正确")
-    
-    def _extract_tasks_with_rules(self, description: str) -> List[Task]:
-        """使用规则提取任务（模拟模式）"""
-        tasks = []
-        
-        # 简单的关键词匹配
-        keywords = [
-            ("需求分析", 5, "项目启动"),
-            ("系统设计", 7, "设计阶段"),
-            ("架构设计", 5, "设计阶段"),
-            ("前端开发", 10, "开发阶段"),
-            ("后端开发", 12, "开发阶段"),
-            ("数据库设计", 3, "设计阶段"),
-            ("测试", 5, "测试阶段"),
-            ("部署", 2, "发布阶段"),
-            ("上线", 1, "发布阶段"),
-        ]
-        
-        task_id = 1
-        for keyword, duration, section in keywords:
-            if keyword in description:
-                # 检查是否为里程碑
-                is_milestone = "里程碑" in keyword or "完成" in keyword
-                
-                task = Task(
-                    id=f"task{task_id}",
-                    name=keyword,
-                    duration=0 if is_milestone else duration,
-                    is_milestone=is_milestone,
-                    section=section,
-                    status=["active"] if not is_milestone else ["milestone"]
-                )
-                tasks.append(task)
-                task_id += 1
-        
-        # 如果没有找到任务，创建默认任务
-        if not tasks:
-            tasks = [
-                Task(
-                    id="task1",
-                    name="项目规划",
-                    duration=3,
-                    section="项目启动",
-                    status=["active"]
-                ),
-                Task(
-                    id="task2",
-                    name="执行阶段",
-                    duration=10,
-                    dependencies=["task1"],
-                    section="执行阶段",
-                    status=["active"]
-                ),
-                Task(
-                    id="milestone1",
-                    name="项目完成",
-                    duration=0,
-                    dependencies=["task2"],
-                    is_milestone=True,
-                    section="项目结束",
-                    status=["milestone"]
-                )
-            ]
-        
-        return tasks
+            print(f"原始响应长度: {len(response)}")
+            print(f"响应前500字符: {response[:500]}")
+            print(f"响应后500字符: {response[-500:]}")
+            raise ValueError(f"AI返回的数据格式不正确: {str(e)}")
     
     def enhance_with_ai(self, project_plan: ProjectPlan) -> ProjectPlan:
         """使用AI增强项目计划"""
-        if not self.llm_client:
-            return project_plan
         
         system_prompt = """你是一个项目管理专家。请分析给定的项目计划，提供优化建议和改进。
 
@@ -302,22 +268,17 @@ class NaturalLanguageParser:
 
 请返回优化后的JSON格式项目计划。"""
         
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            content = self.llm_client.chat_completion(messages, temperature=0.1, max_tokens=2000)
-            
-            if content:
-                return self._parse_ai_response(content)
-            else:
-                raise Exception("LLM返回空结果")
-            
-        except Exception as e:
-            print(f"AI优化失败: {e}")
-            return project_plan
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        content = self.llm_client.chat_completion(messages, temperature=0.1, max_tokens=2000)
+        
+        if not content:
+            raise Exception("LLM返回空结果，优化失败")
+        
+        return self._parse_ai_response(content)
     
     def _project_plan_to_dict(self, project_plan: ProjectPlan) -> Dict:
         """将项目计划转换为字典"""
